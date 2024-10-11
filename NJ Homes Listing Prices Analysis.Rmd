@@ -1,0 +1,291 @@
+---
+title: "NJ Homes Listing Prices Analysis"
+author: "Rutwik Guntoorkar"
+date: "11-08-2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+## 1. Introduction
+Zillow, a popular real estate platform, provides monthly indices for median home prices. Using this data, we analyze the median home prices for house listings in New Jersey. This report provides insights into the time series analysis and forecasting techniques employed to understand trends and make future predictions.
+
+#### Data Source
+The data was retrieved from Zillow Research and includes monthly median home prices for New Jersey from April 1996 onwards.
+
+#### Importing Data
+```{r}
+library(fpp)
+library(fpp2)
+library(TTR)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(readr)
+
+library(readr)
+NJ_MedianListingPrice_AllHomes <- read_csv("/Users/rutwik/Desktop//NJ_MedianListingPrice_AllHomes.csv")
+names(NJ_MedianListingPrice_AllHomes)
+NJ_Home_Raw <- NJ_MedianListingPrice_AllHomes$Value
+NJ_Home_TS <- ts(NJ_Home_Raw,frequency = 12, start = c(1996,4))
+```
+
+## Plot and Inference
+
+
+
+```{r}
+
+window(NJ_Home_TS,2015)
+data <- window(NJ_Home_TS,2015)
+##Time Series Plot
+plot(data,main = 'Median home prices for House Listing in New Jersey', xlab = 'Year', ylab = 'Median home prices')
+
+```
+
+
+#### Time Series Plot
+The time series plot shows the variation in median home prices from April 1996 to August 2017. The prices exhibited an increasing trend over the period. The data post-2015 was used for detailed analysis due to a significant market disruption during the 2008 economic crisis.
+
+#### Observation:
+The home prices show a steady increasing trend from 2015 to 2017. There are seasonal variations indicating cyclic patterns in certain months.
+
+
+
+
+## Central Tendency
+
+```{r}
+summary(data)
+```
+
+
+```{r}
+boxplot(data)
+```
+
+
+• The box plot for the given time series data shows us that the prices varies from min value (285000 to max value (305000)
+
+• IQR ranges from 197800 to 307900
+
+• As mean price is 263499 and median is 280200, The distribution is left skewed
+
+• Also boxplot suggests there are no outliers
+
+
+
+
+## Decomposition
+
+
+```{r}
+library(fpp)
+library(fpp2)
+
+decomp_data <- stl(data,s.window ="periodic")
+
+#Plot of decomposition of timeseries.
+plot(decomp_data)
+Acf(data)
+
+decomp_data
+
+
+
+```
+
+##### Time series decomposition helps separate the time series into trend, seasonality, and residual components. This analysis revealed that:
+
+The seasonal component is stable across the years.
+The trend component shows a gradual upward movement.
+The residual component indicates variations not captured by trend or seasonality.
+
+##### Additive or Multiplicative Decomposition:
+The decomposition appears to be additive because the seasonal variation remains consistent regardless of changes in the trend.
+
+```{r}
+SATS <- seasadj(decomp_data)
+plot(data, ylab="Home Prices")
+lines(SATS, col="red")
+
+```
+
+After overlaying the plot for time series adjusted for seasonality and the line for actual time series we can see that it somewhats fits the actual line, and there is negligible fluctuations at any point.
+
+
+## Forecasting Methods and Residual Analysis
+
+### Naïve Method
+
+```{r}
+#naives bayes
+
+naive_fc = naive(data)
+plot(naive_fc)
+lines(naive_fc$fitted, col="green")
+accuracy(naive_fc)
+```
+
+```{r}
+naive_residual <- naive_fc$residuals
+naive_fitted <- naive_fc$fitted
+plot(naive_residual, ylab="Residual")
+hist(naive_residual, xlab="Residual")
+plot.ts(naive_fc$fitted,naive_fc$residuals,xy.labels = FALSE,xy.lines = FALSE)
+plot.ts(naive_fc$x,naive_fc$residuals,xy.labels = FALSE,xy.lines = FALSE)
+plot(naive_fitted, naive_residual)
+plot(data, naive_residual)
+Acf(naive_residual)
+accuracy(naive_fc)
+naive_forecast <- forecast(naive_fc,20)
+naive_forecast
+accuracy(naive_forecast)
+plot(naive_forecast)
+
+```
+
+
+### The naive method was applied, and the residual analysis showed:
+
+##### Residual Plot: The residuals did not have a mean of zero, indicating a potential bias in prediction.
+##### ACF Plot: Shows significant autocorrelation, suggesting some patterns were not captured by the naive forecast.
+
+
+
+### Simple Moving Averages
+
+```{r}
+#Moving Avg
+ma_forecast_1 = ma(data,order=3)
+ma_forecast_2 = ma(data,order=6)
+ma_forecast_3 = ma(data,order=9)
+
+plot(data)
+lines(ma_forecast_1, col="red")
+lines(ma_forecast_2, col="green")
+lines(ma_forecast_3, col="blue")
+
+```
+
+#### Three different moving average orders were applied: 3, 6, and 9. It was observed that:
+
+• Order 3 provided the closest approximation to the actual data.
+
+• Higher orders smoothed the curve more, resulting in less accuracy in terms of short-term predictions.
+
+
+### Simple Smoothing (SES)
+
+
+```{r}
+#simple smoothing
+ses_fc <- ses(data)
+plot(ses_fc)
+summary(ses_fc)
+attributes(ses_fc)
+plot(ses_fc$residuals)
+hist(ses_fc$residuals)
+cbind(Data = data,
+      Residuals=residuals(ses_fc)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Data, y=Residuals)) + geom_point()
+Acf(ses_fc$residuals)
+accuracy(ses_fc)
+forecast(ses_fc)
+plot(forecast(ses_fc))
+
+```
+
+### Observations :
+• Alpha = 0.9999
+  Alpha specifies the coefficient for the level smoothing. Values near 1.0 mean that the latest value has more weight.
+  
+• Initial state: l = 283901.0096
+
+• Sigma: 1043.324. Sigma defines the variance in the forecast predicted.
+
+• The residuals appear to have increasing positive values and then peaked in the third quarter of the year 2016 and then dipped down.
+
+• Most of the residual values appear to be positive and do not have a mean of zero.
+
+• The histogram appears to be normally distributed. But the values do not have a mean zero. That is data is biased.
+
+• The Fitted vs Residuals plot appears to have a trend. The plot slightly shows a straight diagonal line pattern.
+
+• This means there is heteroscedasticity in the errors which means that the variance of the residuals may not be constant.
+
+• Similar to the previous plot, the Actual vs. Residuals plot appears to have some trend in the data.
+
+• Values of the Acf have crossed the confidence level meaning there is a trend in the residuals and we have missed some variable in our forecast. The Acf values also show seasonality in the plot and we missed this variable too.
+
+
+
+
+
+### Simple Smoothing - Holt-Winters Method
+
+```{r}
+HW_forecast <- hw(data, seasonal = "additive")
+plot(forecast(HW_forecast))
+attributes(HW_forecast)
+hw_add <- forecast(HW_forecast)
+hw_add$model
+plot(hw_add$residuals)
+hist(hw_add$residuals)
+cbind(Fitted = fitted(hw_add),
+      Residuals=residuals(hw_add)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Fitted, y=Residuals)) + geom_point()
+cbind(Data = data,
+      Residuals=residuals(hw_add)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Data, y=Residuals)) + geom_point()
+Acf(hw_add$residuals)
+accuracy(hw_add)
+forecast(HW_forecast)
+plot(forecast(HW_forecast))
+
+
+
+```
+
+####Holt-Winters’ additive model was used with the following parameters:
+
+• Alpha: 0.5573
+
+• Beta: 1e-04
+
+• Gamma: 0.4427
+
+The model provided the best fit among the methods, as indicated by the lower error values.
+
+
+## Conclusion: 
+The analysis of New Jersey median home prices from April 1996 to August 2017 reveals significant trends and seasonal patterns. Our objective was to identify key insights into the historical data and utilize various forecasting techniques to predict future movements in home prices. The study included decomposition analysis, central tendency measures, and application of multiple forecasting methods—Naive, Simple Moving Averages, Simple Exponential Smoothing (SES), and Holt-Winters’ models—to evaluate their efficacy and accuracy.
+
+#### Key Findings:
+
+1. **Trend and Seasonality**:  
+   - The time series analysis indicates a steady upward trend in home prices since 2015, suggesting a robust growth in the New Jersey housing market post the 2008 economic crisis. 
+   - The decomposition analysis shows a strong seasonal component, which recurs consistently over the years. This seasonality highlights predictable variations, with home prices typically peaking in the winter months (November–December) and declining during summer (June–July). Such trends could be attributed to seasonal buying patterns, where the demand for housing generally increases towards the end of the year.
+
+2. **Central Tendency and Spread**:  
+   - The data’s central tendency metrics, including mean, median, and quartiles, further confirm a steady growth in prices. The IQR (Interquartile Range) analysis showed minimal dispersion, indicating consistent market behavior without extreme fluctuations or outliers.
+
+3. **Model Performance and Forecasting**:  
+   - The Naive method, which uses the previous period's value as a forecast, was quick to implement but lacked precision, as indicated by the high Mean Absolute Error (MAE) and autocorrelation in residuals.
+   - The Simple Moving Averages (orders 3, 6, and 9) provided a smoother approximation of trends but tended to overlook short-term fluctuations, making them more suitable for capturing long-term movements.
+   - The Simple Exponential Smoothing (SES) method resulted in better performance than the Naive method by adjusting for recent changes. However, its residuals analysis showed some bias, indicating an incomplete capture of seasonality.
+   - The Holt-Winters method emerged as the most reliable forecasting technique. By incorporating both trend and seasonality components, it produced the most accurate forecasts with the lowest error values. The additive Holt-Winters model fit well with the data structure, affirming that seasonal variations remain constant in size over time while the trend component changes.
+
+4. **Future Forecast and Market Implications**:  
+   - All three forecasting models—Naive, SES, and Holt-Winters—predict continued growth in home prices over the next year. However, the Holt-Winters forecast is particularly optimistic, projecting a steady increase in prices for the next 12 months, with the possibility of surpassing $330,000 by mid-2019.
+   - The economic and market conditions influencing these price movements should be further investigated. Factors such as interest rates, housing supply, and demographic shifts could either accelerate or dampen the predicted growth.
+
+5. **Model Comparison and Best Choice**:  
+   - **Holt-Winters** was the superior model for forecasting home prices due to its comprehensive approach to handling trend and seasonality. Its lower error rates (e.g., MAE and RMSE) and better residual distribution suggest that it captures the underlying patterns more effectively than other models.
+
+#### Final Recommendations:
+Given the analysis and the strength of the Holt-Winters model, it is recommended to use this model for future forecasting of New Jersey median home prices. The model’s consideration of both seasonal and trend factors allows for a more nuanced and accurate forecast, making it particularly suitable for real estate market analyses. Future updates to the model should include new data points and incorporate external economic factors to enhance prediction accuracy.
+
+In conclusion, the New Jersey housing market is projected to continue its upward trajectory in the near future, with median home prices expected to rise steadily. This trend aligns with broader economic conditions, suggesting sustained demand for housing in the region. Such insights are invaluable for real estate investors, policy makers, and prospective home buyers aiming to make informed decisions based on data-driven projections.
